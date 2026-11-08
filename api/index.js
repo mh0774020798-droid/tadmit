@@ -1,8 +1,10 @@
 const E=process.env,F=re=>{const k=Object.keys(E).find(k=>re.test(k)&&!/READ_ONLY/.test(k));return k?E[k]:undefined};
 const U=F(/REST_API_URL$|REDIS_REST_URL$/),T=F(/REST_API_TOKEN$|REDIS_REST_TOKEN$/);
+const HAS=!!(U&&T)||!!E.REDIS_URL;
+let CL;const kv=async()=>{if(!CL){const c=require('redis').createClient({url:E.REDIS_URL});c.on('error',()=>{});try{await c.connect()}catch(e){throw e}CL=c}return CL};
 const NOKV=()=>'Redis לא מחובר. משתנים שנמצאו: '+(Object.keys(E).filter(k=>/KV|REDIS|UPSTASH|STORAGE/i.test(k)).join(', ')||'אין');
 const R=(...c)=>fetch(U,{method:'POST',headers:{Authorization:'Bearer '+T},body:JSON.stringify(c)}).then(r=>r.json()).then(j=>j.result);
-const get=async k=>{try{return JSON.parse((await R('GET',k))||'[]')}catch(e){return[]}},set=(k,v)=>R('SET',k,JSON.stringify(v));
+const get=async k=>{try{return JSON.parse((await(U&&T?R('GET',k):(await kv()).get(k)))||'[]')}catch(e){return[]}},set=async(k,v)=>{const j=JSON.stringify(v);return U&&T?R('SET',k,j):(await kv()).set(k,j)};
 const cut=(s,n)=>String(s||'').slice(0,n);
 module.exports=async(req,res)=>{
  if(req.method!=='POST')return res.status(405).end();
@@ -12,7 +14,7 @@ module.exports=async(req,res)=>{
   if(a==='contact'){
    if(!A&&/^\d{9,10}$/.test(String(b.phone||'').trim()))return res.json({cfg:'ADMIN_PASS לא מוגדר ב-Vercel (או שלא בוצע Redeploy)'});
    if(A&&String(b.phone||'').trim()===A)return res.json({admin:true});
-   if(!U)return res.status(503).json({cfg:NOKV()});
+   if(!HAS)return res.status(503).json({cfg:NOKV()});
    const m=await get('msgs');
    m.unshift({id:Date.now(),name:cut(b.name,80),email:cut(b.email,120),phone:cut(b.phone,30),type:cut(b.type,40),msg:cut(b.msg,2000),t:new Date().toISOString()});
    await set('msgs',m.slice(0,300));return res.json({done:1});
@@ -23,7 +25,7 @@ module.exports=async(req,res)=>{
    await set('revs',r.slice(0,200));return res.json({done:1});
   }
   if(!ok)return res.status(401).json({err:1});
-  if(!U)return res.status(503).json({cfg:NOKV()});
+  if(!HAS)return res.status(503).json({cfg:NOKV()});
   if(a==='all')return res.json({apps:await get('apps'),msgs:await get('msgs'),revs:await get('revs')});
   if(a==='addapp'){
    const l=await get('apps');
