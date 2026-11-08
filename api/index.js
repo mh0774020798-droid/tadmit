@@ -1,4 +1,6 @@
-const U=process.env.KV_REST_API_URL||process.env.UPSTASH_REDIS_REST_URL,T=process.env.KV_REST_API_TOKEN||process.env.UPSTASH_REDIS_REST_TOKEN;
+const E=process.env,F=re=>{const k=Object.keys(E).find(k=>re.test(k)&&!/READ_ONLY/.test(k));return k?E[k]:undefined};
+const U=F(/REST_API_URL$|REDIS_REST_URL$/),T=F(/REST_API_TOKEN$|REDIS_REST_TOKEN$/);
+const NOKV=()=>'Redis לא מחובר. משתנים שנמצאו: '+(Object.keys(E).filter(k=>/KV|REDIS|UPSTASH|STORAGE/i.test(k)).join(', ')||'אין');
 const R=(...c)=>fetch(U,{method:'POST',headers:{Authorization:'Bearer '+T},body:JSON.stringify(c)}).then(r=>r.json()).then(j=>j.result);
 const get=async k=>{try{return JSON.parse((await R('GET',k))||'[]')}catch(e){return[]}},set=(k,v)=>R('SET',k,JSON.stringify(v));
 const cut=(s,n)=>String(s||'').slice(0,n);
@@ -10,7 +12,7 @@ module.exports=async(req,res)=>{
   if(a==='contact'){
    if(!A&&/^\d{9,10}$/.test(String(b.phone||'').trim()))return res.json({cfg:'ADMIN_PASS לא מוגדר ב-Vercel (או שלא בוצע Redeploy)'});
    if(A&&String(b.phone||'').trim()===A)return res.json({admin:true});
-   if(!U)return res.status(503).json({cfg:'Redis לא מחובר ב-Vercel'});
+   if(!U)return res.status(503).json({cfg:NOKV()});
    const m=await get('msgs');
    m.unshift({id:Date.now(),name:cut(b.name,80),email:cut(b.email,120),phone:cut(b.phone,30),type:cut(b.type,40),msg:cut(b.msg,2000),t:new Date().toISOString()});
    await set('msgs',m.slice(0,300));return res.json({done:1});
@@ -21,7 +23,7 @@ module.exports=async(req,res)=>{
    await set('revs',r.slice(0,200));return res.json({done:1});
   }
   if(!ok)return res.status(401).json({err:1});
-  if(!U)return res.status(503).json({cfg:'Redis לא מחובר ב-Vercel'});
+  if(!U)return res.status(503).json({cfg:NOKV()});
   if(a==='all')return res.json({apps:await get('apps'),msgs:await get('msgs'),revs:await get('revs')});
   if(a==='addapp'){
    const l=await get('apps');
